@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bank Coins Manager - Login Required</title>
+</head>
+<body>
+  <h1>Bank Coins Manager</h1>
+
+  <div id="login-section" style="display: none;">
+    <h2>Login or Create Account</h2>
+    <label for="username">Username:</label>
+    <input type="text" id="username" autocomplete="username" />
+    <br />
+    <label for="code">Password:</label>
+    <input type="password" id="code" autocomplete="current-password" />
+    <br />
+    <button onclick="login()">Login</button>
+    <button onclick="createAccount()">Create Account</button>
+    <p id="login-error" style="color: red;"></p>
+  </div>
+
+  <div id="bank-section" style="display: none;">
+    <p>Coins: <span id="coins">-</span></p>
+
+    <hr />
+
+    <label for="amount">Amount:</label>
+    <input type="number" id="amount" value="10" />
+
+    <button onclick="addCoins()">Add Coins</button>
+    <button onclick="subtractCoins()">Subtract Coins</button>
+
+    <br /><br />
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <script>
+    const BASE_URL = 'https://occasional-lin-stephensmith-73c2ceca.koyeb.app';
+
+    let authUsername = null;
+    let authCode = null;
+    let bankId = null;
+
+    window.onload = () => {
+      authUsername = localStorage.getItem('authUsername');
+      authCode = localStorage.getItem('authCode');
+      bankId = localStorage.getItem('bankId');
+
+      if (authUsername && authCode && bankId) {
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('bank-section').style.display = 'block';
+        loadCoins();
+      } else {
+        document.getElementById('login-section').style.display = 'block';
+      }
+    };
+
+    async function login() {
+      const usernameInput = document.getElementById('username').value.trim();
+      const codeInput = document.getElementById('code').value.trim();
+      const loginError = document.getElementById('login-error');
+      loginError.textContent = '';
+
+      if (!usernameInput || !codeInput) {
+        loginError.textContent = 'Please enter username and password.';
+        return;
+      }
+
+      const res = await fetch(`${BASE_URL}/banks/find_by_credentials?username=${encodeURIComponent(usernameInput)}&code=${encodeURIComponent(codeInput)}`);
+
+      if (res.ok) {
+        const data = await res.json();
+
+        authUsername = usernameInput;
+        authCode = codeInput;
+        bankId = data.id;
+
+        localStorage.setItem('authUsername', authUsername);
+        localStorage.setItem('authCode', authCode);
+        localStorage.setItem('bankId', bankId);
+
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('bank-section').style.display = 'block';
+
+        loadCoins();
+      } else {
+        const data = await res.json();
+        loginError.textContent = data.error || 'Login failed.';
+      }
+    }
+
+    async function createAccount() {
+      const usernameInput = document.getElementById('username').value.trim();
+      const codeInput = document.getElementById('code').value.trim();
+      const loginError = document.getElementById('login-error');
+      loginError.textContent = '';
+
+      if (!usernameInput || !codeInput) {
+        loginError.textContent = 'Please enter username and password.';
+        return;
+      }
+
+      const res = await fetch(`${BASE_URL}/banks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: usernameInput, code: codeInput })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        authUsername = usernameInput;
+        authCode = codeInput;
+        bankId = data.id;
+
+        localStorage.setItem('authUsername', authUsername);
+        localStorage.setItem('authCode', authCode);
+        localStorage.setItem('bankId', bankId);
+
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('bank-section').style.display = 'block';
+
+        loadCoins();
+      } else {
+        loginError.textContent = data.error || 'Account creation failed.';
+      }
+    }
+
+    async function loadCoins() {
+      if (!bankId) return alert('No bank ID found.');
+
+      const res = await fetch(`${BASE_URL}/banks/${bankId}`);
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('coins').textContent = data.coins;
+      } else {
+        alert('Bank not found');
+        document.getElementById('coins').textContent = '-';
+      }
+    }
+
+    async function addCoins() {
+      const amount = parseInt(document.getElementById('amount').value, 10);
+
+      if (isNaN(amount) || amount <= 0) {
+        alert('Enter a valid positive amount');
+        return;
+      }
+
+      const res = await fetch(`${BASE_URL}/banks/${bankId}/add_coins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, username: authUsername, code: authCode })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById('coins').textContent = data.coins;
+      } else {
+        alert(data.error);
+      }
+    }
+
+    async function subtractCoins() {
+      const amount = parseInt(document.getElementById('amount').value, 10);
+
+      if (isNaN(amount) || amount <= 0) {
+        alert('Enter a valid positive amount');
+        return;
+      }
+
+      const res = await fetch(`${BASE_URL}/banks/${bankId}/subtract_coins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, username: authUsername, code: authCode })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById('coins').textContent = data.coins;
+      } else {
+        alert(data.error);
+      }
+    }
+
+    function logout() {
+      authUsername = null;
+      authCode = null;
+      bankId = null;
+
+      localStorage.removeItem('authUsername');
+      localStorage.removeItem('authCode');
+      localStorage.removeItem('bankId');
+
+      document.getElementById('login-section').style.display = 'block';
+      document.getElementById('bank-section').style.display = 'none';
+      document.getElementById('username').value = '';
+      document.getElementById('code').value = '';
+      document.getElementById('coins').textContent = '-';
+    }
+  </script>
+</body>
+</html>
